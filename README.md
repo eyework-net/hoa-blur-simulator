@@ -78,7 +78,7 @@ It should **not** be used for:
 
 ## How to Use
 
-1. Open `index.html`
+1. Open https://eyework-net.github.io/hoa-blur-simulator/
 2. Select a sample scene
 3. Adjust aberration sliders
 4. Observe simulated visual quality changes

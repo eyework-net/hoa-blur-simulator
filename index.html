@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Higher-Order Aberration Blur Simulator</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel-2: #1f2937;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --accent: #38bdf8;
+      --accent-2: #a78bfa;
+      --border: #374151;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --good: #22c55e;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top left, #1e293b 0, #0f172a 45%, #020617 100%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    header {
+      padding: 32px 20px 20px;
+      text-align: center;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: clamp(1.8rem, 4vw, 3rem);
+      letter-spacing: -0.04em;
+    }
+
+    header p {
+      margin: 12px auto 0;
+      max-width: 760px;
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.6;
+    }
+
+    .badge {
+      display: inline-block;
+      margin-bottom: 12px;
+      padding: 6px 12px;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 999px;
+      color: var(--accent);
+      background: rgba(56, 189, 248, 0.08);
+      font-size: 0.85rem;
+    }
+
+    main {
+      width: min(1240px, calc(100% - 32px));
+      margin: 0 auto 40px;
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 920px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: rgba(17, 24, 39, 0.88);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: 24px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.28);
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 18px 20px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+      background: rgba(31, 41, 55, 0.52);
+    }
+
+    .card-header h2 {
+      margin: 0;
+      font-size: 1.05rem;
+      letter-spacing: -0.01em;
+    }
+
+    .card-header small {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .controls {
+      padding: 18px 20px 22px;
+    }
+
+    .control-group {
+      margin-bottom: 20px;
+    }
+
+    .control-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    label {
+      font-weight: 650;
+      font-size: 0.94rem;
+    }
+
+    .value {
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
+      font-size: 0.92rem;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.45;
+      margin-top: 4px;
+    }
+
+    .select-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    select, button {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #0b1220;
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 0.95rem;
+    }
+
+    button {
+      cursor: pointer;
+      font-weight: 700;
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.95), rgba(167, 139, 250, 0.95));
+      color: #020617;
+      border: none;
+      transition: transform 120ms ease, filter 120ms ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.05);
+    }
+
+    .secondary-button {
+      background: #0b1220;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .button-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .simulation-panel {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      min-height: 720px;
+    }
+
+    .canvas-wrap {
+      padding: 20px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 700px) {
+      .canvas-wrap {
+        grid-template-columns: 1fr;
+      }
+      .simulation-panel {
+        min-height: auto;
+      }
+    }
+
+    .canvas-box {
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      border-radius: 20px;
+      background: #020617;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .canvas-title {
+      position: absolute;
+      z-index: 5;
+      left: 12px;
+      top: 12px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: rgba(2, 6, 23, 0.74);
+      color: #d1d5db;
+      font-size: 0.78rem;
+      border: 1px solid rgba(148, 163, 184, 0.16);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+      aspect-ratio: 1 / 1;
+    }
+
+    .interpretation {
+      padding: 0 20px 22px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    @media (max-width: 900px) {
+      .interpretation {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .metric {
+      background: rgba(31, 41, 55, 0.65);
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      border-radius: 16px;
+      padding: 14px;
+    }
+
+    .metric strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 0.92rem;
+    }
+
+    .metric p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.86rem;
+      line-height: 1.5;
+    }
+
+    .severity {
+      font-weight: 800;
+    }
+
+    .severity.low { color: var(--good); }
+    .severity.moderate { color: var(--warning); }
+    .severity.high { color: var(--danger); }
+
+    .note {
+      width: min(1240px, calc(100% - 32px));
+      margin: 0 auto 40px;
+      padding: 18px 20px;
+      color: var(--muted);
+      background: rgba(15, 23, 42, 0.72);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      border-radius: 18px;
+      line-height: 1.65;
+      font-size: 0.92rem;
+    }
+
+    .note strong {
+      color: var(--text);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="badge">Educational optical blur simulator</div>
+    <h1>Higher-Order Aberration Blur Simulator</h1>
+    <p>
+      This tool converts ocular aberration values into an intuitive visual blur simulation.
+      It is intended for clinical explanation, education, and demonstration rather than exact Zernike-based optical reconstruction.
+    </p>
+  </header>
+
+  <main>
+    <section class="card">
+      <div class="card-header">
+        <h2>Input Parameters</h2>
+        <small>Adjust pupil size and aberration values. Effects are scaled visually for educational use.</small>
+      </div>
+
+      <div class="controls">
+        <div class="select-row">
+          <div>
+            <label for="sceneSelect">Scene</label>
+            <select id="sceneSelect">
+              <option value="text">Text Reading</option>
+              <option value="lights">Night Lights</option>
+              <option value="grid">Grid Pattern</option>
+              <option value="landolt">Contrast Target</option>
+            </select>
+          </div>
+          <div>
+            <label for="directionSelect">Coma Direction</label>
+            <select id="directionSelect">
+              <option value="0">Right</option>
+              <option value="45">Down-right</option>
+              <option value="90">Down</option>
+              <option value="135">Down-left</option>
+              <option value="180">Left</option>
+              <option value="270">Up</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <div class="control-row">
+            <label for="pupil">Pupil Size</label>
+            <span class="value" id="pupilValue">4.0 mm</span>
+          </div>
+          <input id="pupil" type="range" min="2" max="7" step="0.1" value="4.0" />
+          <div class="hint">Larger pupils increase the visible impact of aberrations, especially in dim light.</div>
+        </div>
+
+        <div class="control-group">
+          <div class="control-row">
+            <label for="total">Total Aberration</label>
+            <span class="value" id="totalValue">0.30 μm</span>
+          </div>
+          <input id="total" type="range" min="0" max="1.5" step="0.01" value="0.30" />
+          <div class="hint">Controls the global blur and contrast reduction.</div>
+        </div>
+
+        <div class="control-group">
+          <div class="control-row">
+            <label for="coma">Coma</label>
+            <span class="value" id="comaValue">0.15 μm</span>
+          </div>
+          <input id="coma" type="range" min="0" max="1.0" step="0.01" value="0.15" />
+          <div class="hint">Produces directional smearing or comet-like tailing around edges and lights.</div>
+        </div>
+
+        <div class="control-group">
+          <div class="control-row">
+            <label for="trefoil">Trefoil</label>
+            <span class="value" id="trefoilValue">0.10 μm</span>
+          </div>
+          <input id="trefoil" type="range" min="0" max="1.0" step="0.01" value="0.10" />
+          <div class="hint">Creates three-directional ghosting or tri-radial spread.</div>
+        </div>
+
+        <div class="control-group">
+          <div class="control-row">
+            <label for="tilt">Tilt</label>
+            <span class="value" id="tiltValue">0.05 μm</span>
+          </div>
+          <input id="tilt" type="range" min="0" max="1.0" step="0.01" value="0.05" />
+          <div class="hint">Adds image displacement and asymmetric offset.</div>
+        </div>
+
+        <div class="button-row">
+          <button id="updateBtn">Update Simulation</button>
+          <button class="secondary-button" id="resetBtn">Reset</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card simulation-panel">
+      <div class="card-header">
+        <h2>Visual Simulation</h2>
+        <small>Original image and simulated aberration-induced blur are shown side by side.</small>
+      </div>
+
+      <div class="canvas-wrap">
+        <div class="canvas-box">
+          <div class="canvas-title">Original</div>
+          <canvas id="originalCanvas" width="640" height="640"></canvas>
+        </div>
+        <div class="canvas-box">
+          <div class="canvas-title">Simulated View</div>
+          <canvas id="simCanvas" width="640" height="640"></canvas>
+        </div>
+      </div>
+
+      <div class="interpretation">
+        <div class="metric">
+          <strong>Estimated Severity</strong>
+          <p id="severityText"><span class="severity low">Low</span>: mild blur or contrast reduction.</p>
+        </div>
+        <div class="metric">
+          <strong>Dominant Pattern</strong>
+          <p id="patternText">Balanced mild aberration profile.</p>
+        </div>
+        <div class="metric">
+          <strong>Clinical Comment</strong>
+          <p id="commentText">Symptoms may be subtle under photopic conditions and more noticeable in dim light.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <section class="note">
+    <strong>Important limitation:</strong>
+    This simulator does not calculate a true point spread function from full Zernike coefficients.
+    It uses simplified visual transformations based on total aberration, coma, trefoil, tilt, and pupil size.
+    It should be used for education and communication, not for diagnostic decision-making or quantitative optical evaluation.
+  </section>
+
+  <script>
+    const originalCanvas = document.getElementById('originalCanvas');
+    const simCanvas = document.getElementById('simCanvas');
+    const octx = originalCanvas.getContext('2d');
+    const sctx = simCanvas.getContext('2d');
+
+    const controls = {
+      scene: document.getElementById('sceneSelect'),
+      direction: document.getElementById('directionSelect'),
+      pupil: document.getElementById('pupil'),
+      total: document.getElementById('total'),
+      coma: document.getElementById('coma'),
+      trefoil: document.getElementById('trefoil'),
+      tilt: document.getElementById('tilt'),
+    };
+
+    const labels = {
+      pupil: document.getElementById('pupilValue'),
+      total: document.getElementById('totalValue'),
+      coma: document.getElementById('comaValue'),
+      trefoil: document.getElementById('trefoilValue'),
+      tilt: document.getElementById('tiltValue'),
+    };
+
+    const severityText = document.getElementById('severityText');
+    const patternText = document.getElementById('patternText');
+    const commentText = document.getElementById('commentText');
+
+    function updateLabels() {
+      labels.pupil.textContent = `${Number(controls.pupil.value).toFixed(1)} mm`;
+      labels.total.textContent = `${Number(controls.total.value).toFixed(2)} μm`;
+      labels.coma.textContent = `${Number(controls.coma.value).toFixed(2)} μm`;
+      labels.trefoil.textContent = `${Number(controls.trefoil.value).toFixed(2)} μm`;
+      labels.tilt.textContent = `${Number(controls.tilt.value).toFixed(2)} μm`;
+    }
+
+    function clearCanvas(ctx) {
+      ctx.clearRect(0, 0, 640, 640);
+      ctx.fillStyle = '#020617';
+      ctx.fillRect(0, 0, 640, 640);
+    }
+
+    function drawScene(ctx, scene) {
+      clearCanvas(ctx);
+
+      if (scene === 'text') drawTextScene(ctx);
+      if (scene === 'lights') drawNightLights(ctx);
+      if (scene === 'grid') drawGridScene(ctx);
+      if (scene === 'landolt') drawContrastTarget(ctx);
+    }
+
+    function drawTextScene(ctx) {
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(0, 0, 640, 640);
+      ctx.fillStyle = '#111827';
+      ctx.font = '700 52px Arial';
+      ctx.fillText('Visual Quality', 78, 170);
+      ctx.font = '500 32px Arial';
+      ctx.fillText('Contrast, clarity, and ghosting', 78, 230);
+      ctx.fillText('may change with ocular aberrations.', 78, 280);
+      ctx.font = '700 86px Arial';
+      ctx.fillText('20/20', 78, 420);
+      ctx.font = '500 28px Arial';
+      ctx.fillText('HIGH CONTRAST TEXT SAMPLE', 78, 485);
+      ctx.fillText('low contrast text sample', 78, 530);
+    }
+
+    function drawNightLights(ctx) {
+      const gradient = ctx.createLinearGradient(0, 0, 0, 640);
+      gradient.addColorStop(0, '#020617');
+      gradient.addColorStop(1, '#111827');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, 640, 640);
+
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(130, 640);
+      ctx.lineTo(290, 330);
+      ctx.lineTo(350, 330);
+      ctx.lineTo(510, 640);
+      ctx.stroke();
+
+      const lights = [
+        [170, 180, 14], [280, 130, 10], [420, 165, 13],
+        [250, 355, 18], [385, 360, 18], [118, 420, 12], [520, 425, 12]
+      ];
+
+      lights.forEach(([x, y, r]) => {
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r * 6);
+        g.addColorStop(0, 'rgba(255,255,255,1)');
+        g.addColorStop(0.25, 'rgba(255,236,179,0.85)');
+        g.addColorStop(1, 'rgba(255,236,179,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x, y, r * 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    function drawGridScene(ctx) {
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(0, 0, 640, 640);
+      ctx.strokeStyle = '#111827';
+      ctx.lineWidth = 2;
+      for (let i = 80; i <= 560; i += 40) {
+        ctx.beginPath();
+        ctx.moveTo(i, 80);
+        ctx.lineTo(i, 560);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(80, i);
+        ctx.lineTo(560, i);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = '#dc2626';
+      ctx.lineWidth = 5;
+      ctx.strokeRect(160, 160, 320, 320);
+      ctx.fillStyle = '#111827';
+      ctx.font = '700 34px Arial';
+      ctx.fillText('Grid Pattern', 210, 610);
+    }
+
+    function drawContrastTarget(ctx) {
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(0, 0, 640, 640);
+      ctx.fillStyle = '#111827';
+      ctx.font = '700 40px Arial';
+      ctx.fillText('Contrast Target', 170, 90);
+
+      const levels = [0, 40, 80, 120, 160, 200];
+      levels.forEach((v, i) => {
+        ctx.fillStyle = `rgb(${v},${v},${v})`;
+        ctx.fillRect(120, 150 + i * 68, 400, 42);
+      });
+
+      ctx.strokeStyle = '#111827';
+      ctx.lineWidth = 22;
+      ctx.beginPath();
+      ctx.arc(320, 520, 55, Math.PI * 0.15, Math.PI * 1.85);
+      ctx.stroke();
+    }
+
+    function getParams() {
+      const pupil = Number(controls.pupil.value);
+      const pupilScale = Math.max(0.6, Math.pow(pupil / 4, 1.75));
+      return {
+        pupil,
+        pupilScale,
+        total: Number(controls.total.value),
+        coma: Number(controls.coma.value),
+        trefoil: Number(controls.trefoil.value),
+        tilt: Number(controls.tilt.value),
+        directionRad: Number(controls.direction.value) * Math.PI / 180,
+      };
+    }
+
+    function drawSimulated() {
+      updateLabels();
+      drawScene(octx, controls.scene.value);
+      clearCanvas(sctx);
+
+      const p = getParams();
+      const blurPx = p.total * p.pupilScale * 8;
+      const comaPx = p.coma * p.pupilScale * 26;
+      const trefoilPx = p.trefoil * p.pupilScale * 22;
+      const tiltPx = p.tilt * p.pupilScale * 18;
+
+      sctx.save();
+      sctx.globalAlpha = 1;
+      sctx.filter = `blur(${blurPx.toFixed(2)}px) contrast(${Math.max(0.55, 1 - p.total * 0.22)})`;
+      sctx.drawImage(originalCanvas, 0, 0);
+      sctx.restore();
+
+      // Coma-like directional ghosting
+      const dx = Math.cos(p.directionRad) * comaPx;
+      const dy = Math.sin(p.directionRad) * comaPx;
+      for (let i = 1; i <= 6; i++) {
+        sctx.save();
+        sctx.globalAlpha = Math.max(0, 0.15 - i * 0.015) * p.coma * p.pupilScale;
+        sctx.filter = `blur(${(blurPx + i * 1.2).toFixed(2)}px)`;
+        sctx.drawImage(originalCanvas, dx * i / 2, dy * i / 2);
+        sctx.restore();
+      }
+
+      // Trefoil-like tri-radial ghosting
+      for (let k = 0; k < 3; k++) {
+        const a = p.directionRad + k * (Math.PI * 2 / 3);
+        const tx = Math.cos(a) * trefoilPx;
+        const ty = Math.sin(a) * trefoilPx;
+        sctx.save();
+        sctx.globalAlpha = 0.18 * p.trefoil * p.pupilScale;
+        sctx.filter = `blur(${(blurPx + 1.8).toFixed(2)}px)`;
+        sctx.drawImage(originalCanvas, tx, ty);
+        sctx.restore();
+      }
+
+      // Tilt-like displacement overlay
+      sctx.save();
+      sctx.globalAlpha = 0.12 * p.tilt * p.pupilScale;
+      sctx.filter = `blur(${Math.max(1, blurPx * 0.7).toFixed(2)}px)`;
+      sctx.drawImage(originalCanvas, -tiltPx, tiltPx * 0.5);
+      sctx.restore();
+
+      // Pupil-related veiling glare, more visible in night-light mode
+      const glareStrength = Math.min(0.35, (p.pupil - 3) * 0.045 + p.total * 0.08 + p.coma * 0.05);
+      if (glareStrength > 0) {
+        sctx.save();
+        const g = sctx.createRadialGradient(320, 320, 40, 320, 320, 430);
+        g.addColorStop(0, `rgba(255,255,255,${glareStrength * 0.35})`);
+        g.addColorStop(1, 'rgba(255,255,255,0)');
+        sctx.fillStyle = g;
+        sctx.fillRect(0, 0, 640, 640);
+        sctx.restore();
+      }
+
+      updateInterpretation(p);
+    }
+
+    function updateInterpretation(p) {
+      const score = (p.total * 1.2 + p.coma * 1.35 + p.trefoil * 1.05 + p.tilt * 0.75) * p.pupilScale;
+      let severityClass = 'low';
+      let severityLabel = 'Low';
+      let severityComment = 'mild blur or contrast reduction.';
+
+      if (score >= 1.2 && score < 2.4) {
+        severityClass = 'moderate';
+        severityLabel = 'Moderate';
+        severityComment = 'noticeable blur, smear, or ghosting may occur.';
+      } else if (score >= 2.4) {
+        severityClass = 'high';
+        severityLabel = 'High';
+        severityComment = 'substantial image degradation may be perceived, especially in dim light.';
+      }
+
+      severityText.innerHTML = `<span class="severity ${severityClass}">${severityLabel}</span>: ${severityComment}`;
+
+      const components = [
+        ['Coma-dominant pattern', p.coma],
+        ['Trefoil-dominant pattern', p.trefoil],
+        ['Tilt-dominant pattern', p.tilt],
+        ['Global blur-dominant pattern', p.total]
+      ].sort((a, b) => b[1] - a[1]);
+
+      const dominant = components[0][0];
+      if (components[0][1] < 0.08) {
+        patternText.textContent = 'Minimal aberration-induced patterning.';
+      } else {
+        patternText.textContent = dominant + '.';
+      }
+
+      if (p.pupil >= 5.5 && score >= 1.2) {
+        commentText.textContent = 'Symptoms are likely to be more apparent under mesopic or scotopic conditions because the effective aberration impact increases with pupil size.';
+      } else if (p.coma > p.trefoil && p.coma > 0.25) {
+        commentText.textContent = 'Directional smear may be prominent around point light sources, headlights, or high-contrast edges.';
+      } else if (p.trefoil > 0.25) {
+        commentText.textContent = 'Tri-radial ghosting may be perceived, particularly around small bright targets.';
+      } else if (p.total > 0.6) {
+        commentText.textContent = 'Overall contrast sensitivity and fine detail perception may be reduced.';
+      } else {
+        commentText.textContent = 'Symptoms may be subtle under photopic conditions and more noticeable in dim light.';
+      }
+    }
+
+    function resetControls() {
+      controls.scene.value = 'text';
+      controls.direction.value = '0';
+      controls.pupil.value = '4.0';
+      controls.total.value = '0.30';
+      controls.coma.value = '0.15';
+      controls.trefoil.value = '0.10';
+      controls.tilt.value = '0.05';
+      drawSimulated();
+    }
+
+    document.getElementById('updateBtn').addEventListener('click', drawSimulated);
+    document.getElementById('resetBtn').addEventListener('click', resetControls);
+
+    Object.values(controls).forEach(el => {
+      el.addEventListener('input', drawSimulated);
+      el.addEventListener('change', drawSimulated);
+    });
+
+    drawSimulated();
+  </script>
+</body>
+</html>
